@@ -82,7 +82,8 @@ jobs:
             echo "value=layersecops:local" >> "$GITHUB_OUTPUT"
             docker tag "${{ steps.build.outputs.imageid }}" layersecops:local
           else
-            echo "value=${{ env.IMAGE_NAME }}:${{ github.sha }}" >> "$GITHUB_OUTPUT"
+            SHORT_SHA="${{ steps.meta.outputs.version }}"
+            echo "value=${{ env.IMAGE_NAME }}:${SHORT_SHA}" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Upload image as artifact (for self-scan on PRs)
