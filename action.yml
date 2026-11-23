@@ -33,9 +33,9 @@ inputs:
     required: false
     default: 'vuln'
   layer-scope:
-    description: 'What to catalog: squashed (final filesystem), all-layers (every layer), or deep-squashed.'
+    description: 'What to catalog: all-layers (default, every layer including deleted files), squashed (final filesystem only), or deep-squashed (squashed plus nested archives).'
     required: false
-    default: 'squashed'
+    default: 'all-layers'
   min-severity:
     description: 'Only include findings at or above this severity in reports.'
     required: false

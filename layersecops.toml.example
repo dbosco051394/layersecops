@@ -3,8 +3,8 @@
 tools = ["trivy", "grype", "syft", "dive"]
 require_tools = ["trivy", "grype", "syft"]
 scanners = ["vuln"]
-# squashed (final filesystem) | all-layers (every layer) | deep-squashed
-layer_scope = "squashed"
+# squashed (final filesystem) | all-layers (default, every layer) | deep-squashed
+layer_scope = "all-layers"
 timeout_seconds = 900
 offline = false
 output_dir = "reports"

@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from layersecops.config import ConfigError, Policy, load_ignore_file, load_settings
+from layersecops.config import ConfigError, Policy, Settings, load_ignore_file, load_settings
 
 
 class ConfigTests(unittest.TestCase):
@@ -75,10 +75,11 @@ max_high = 2
             path.write_text("# x\nCVE-1\n\n CVE-2 \n", encoding="utf-8")
             self.assertEqual(load_ignore_file(path), ["CVE-1", "CVE-2"])
 
-    def test_default_policy(self) -> None:
-        policy = Policy()
-        self.assertEqual(policy.fail_on, "high")
-        self.assertFalse(policy.ignore_unfixed)
+    def test_default_settings(self) -> None:
+        settings = Settings()
+        self.assertEqual(settings.layer_scope, "all-layers")
+        self.assertEqual(settings.log_format, "text")
+        self.assertEqual(settings.tools, ["trivy", "grype", "syft", "dive"])
 
 
 if __name__ == "__main__":

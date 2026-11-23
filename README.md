@@ -19,6 +19,38 @@ No container is started or mounted. The image is read from a tarball (or saved
 from a local daemon), and all four tools inspect that archive. This keeps the
 scan safe for untrusted images and suitable for CI.
 
+## Why LayerSecOps
+
+Most image scanners look only at the **final filesystem** — the squashed result
+of every `RUN`, `COPY` and `ADD`. That means a package installed in layer 3 and
+removed in layer 7 simply vanishes from the report, even though the vulnerable
+bytes shipped in the published image's history and the layer is still cached on
+every node that ever pulled it. LayerSecOps closes that gap:
+
+- **Every layer is catalogued by default.** `--layer-scope all-layers` (the
+  default) tells Syft and Grype to inventory files across *all* layers, so a
+  package added in one layer and deleted in another is still reported against
+  the layer that introduced it, with `confidence: historical`.
+- **Per-layer attribution for every finding.** Each CVE carries `layer.index`,
+  `layer.digest`, `layer.command`, `layer.confidence`, `layer.evidence` and
+  `layer.path`, plus `introducedIndex` showing when the path first appeared.
+  `summary.byLayer` gives counts per layer, so you can pinpoint which Dockerfile
+  instruction introduced a vulnerability.
+- **Whiteout-aware ownership.** `.wh.*` and opaque-directory whiteouts are
+  applied, so a path is attributed to the last layer that actually provides it
+  — not the layer that deleted it.
+- **Evidence, not guesses.** Attribution ranks six evidence levels (exact file
+  ownership → scanner-reported layer → package DB → historical → filename
+  heuristic → unknown), so you always know *why* a layer was chosen.
+- **One schema, four scanners.** Trivy, Grype, Syft and Dive results are
+  normalized and deduplicated into a single `1.0` schema (JSON / SARIF 2.1.0 /
+  HTML / Prometheus), with CVSS, EPSS, KEV, fix versions and aliases merged.
+
+The result: a security gate that not only says *what* is vulnerable, but
+*exactly which layer and Dockerfile instruction* introduced it — including
+vulnerabilities that other tools silently drop because they were "cleaned up"
+later.
+
 ## Why each tool
 
 | Tool | Role |
@@ -48,14 +80,15 @@ mapped back to a layer using this evidence order:
 
 ### Scanning per layer
 
-By default Syft and Grype catalog the **final squashed filesystem**
-(`--layer-scope squashed`), which is what validation of a built image should
-check. Pass `--layer-scope all-layers` to also catalog files that a later layer
-overwrote or deleted, so a package removed by `apk del` or `apt-get remove` is
-still reported against the layer that introduced it:
+By default Syft and Grype catalog **every layer** (`--layer-scope all-layers`),
+including files that a later layer overwrote or deleted. A package removed by
+`apk del` or `apt-get remove` is therefore still reported against the layer
+that introduced it, with `confidence: historical` when the file no longer exists
+in the final image. Pass `--layer-scope squashed` to validate only the final
+filesystem the image will actually run:
 
 ```bash
-layersecops scan --image-tar app.tar --layer-scope all-layers --format json,html
+layersecops scan --image-tar app.tar --layer-scope squashed --format json,html
 ```
 
 Every finding still carries the layer that owns the file (`confidence: exact`)
@@ -73,9 +106,8 @@ Reports also include per-layer counts (`summary.byLayer`) and Dive efficiency
 data.
 
 Example: a three-layer image where layer 1 adds `curl` and layer 2 removes it.
-With `--layer-scope all-layers` the curl CVEs are reported on layer 1; with the
-default squashed scope they are absent because the final filesystem no longer
-contains curl.
+With the default `all-layers` scope the curl CVEs are reported on layer 1; with
+`squashed` they are absent because the final filesystem no longer contains curl.
 
 ## Install
 
@@ -153,7 +185,7 @@ Default output is `reports/<image>-<timestamp>/` with `report.json` and
 | `--tools trivy,grype,syft,dive` | Select which scanners run |
 | `--require-tools trivy,grype,syft` | Tools that must succeed (default) |
 | `--scanners vuln,secret` | Trivy scanners (default `vuln`) |
-| `--layer-scope all-layers` | Also catalog files deleted or replaced by later layers |
+| `--layer-scope all-layers` | Catalog every layer (default); `squashed` validates only the final filesystem |
 | `--offline` | Skip Trivy DB update and Grype DB auto-update || `--min-severity high` | Only include findings at/above this severity in reports |
 | `--ignore CVE-2023-*` | Ignore IDs/globs (repeatable) |
 | `--ignore-package openssl` | Ignore package names/globs (repeatable) |
@@ -252,8 +284,8 @@ Create `layersecops.toml` next to where you run the CLI (or pass `--config`):
 tools = ["trivy", "grype", "syft", "dive"]
 require_tools = ["trivy", "grype", "syft"]
 scanners = ["vuln"]
-# squashed (final filesystem) | all-layers (every layer) | deep-squashed
-layer_scope = "squashed"
+# squashed (final filesystem) | all-layers (default, every layer) | deep-squashed
+layer_scope = "all-layers"
 timeout_seconds = 900
 offline = false
 output_dir = "reports"
@@ -354,7 +386,7 @@ anything:
 | `fail-on` | `high` | Policy threshold |
 | `output-dir` | `reports` | Report directory |
 | `scanners` | `vuln` | Trivy scanners |
-| `layer-scope` | `squashed` | `squashed`, `all-layers`, or `deep-squashed` |
+| `layer-scope` | `all-layers` | `squashed`, `all-layers`, or `deep-squashed` |
 | `min-severity` | — | Filter findings in reports |
 | `offline` | `false` | Skip DB updates |
 | `tool-image` | `ghcr.io/dbosco051394/layersecops:latest` | Override the scanner image |
@@ -426,9 +458,9 @@ templates.
 - **Layer attribution is evidence-based.** Packages can be installed by one
   layer and later patched by another. The reported layer owns the final file;
   `introducedIndex` shows when the path first appeared.
-- **Scope.** `--layer-scope squashed` (default) validates the filesystem the
-  image will actually run. Use `all-layers` when you also care about packages
-  that were installed and then removed in an earlier layer.
+- **Scope.** `--layer-scope all-layers` (default) catalogs every layer, including
+  packages installed and later removed. Use `squashed` to validate only the
+  final filesystem the image will actually run.
 - **Package database paths** are weaker evidence than actual package files.
   They are labelled `db` rather than `exact`.
 - **Multi-image archives.** Docker archives can contain more than one image;

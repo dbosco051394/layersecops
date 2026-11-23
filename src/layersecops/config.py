@@ -51,7 +51,7 @@ class Settings:
     tools: list[str] = field(default_factory=lambda: ["trivy", "grype", "syft", "dive"])
     require_tools: list[str] = field(default_factory=lambda: ["trivy", "grype", "syft"])
     scanners: list[str] = field(default_factory=lambda: ["vuln"])
-    layer_scope: str = "squashed"
+    layer_scope: str = "all-layers"
     log_format: str = "text"
     timeout: float = 900
     offline: bool = False

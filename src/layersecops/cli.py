@@ -293,9 +293,10 @@ def build_parser() -> argparse.ArgumentParser:
     scan.add_argument(
         "--layer-scope",
         choices=["squashed", "all-layers", "deep-squashed"],
+        default="all-layers",
         help=(
-            "what Syft/Grype catalog: 'squashed' (default, final filesystem), "
-            "'all-layers' (every layer, including files later deleted), or "
+            "what Syft/Grype catalog: 'all-layers' (default, every layer including "
+            "files later deleted), 'squashed' (final filesystem only), or "
             "'deep-squashed' (squashed plus nested archives)"
         ),
     )
