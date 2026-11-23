@@ -116,7 +116,10 @@ jobs:
           fi
 
       - name: Export the image
-        run: docker save layersecops:local -o image.tar
+        run: |
+          docker save layersecops:local -o image.tar
+          chmod 644 image.tar
+          mkdir -p reports && chmod 777 reports
 
       - name: Run LayerSecOps against itself
         run: |
@@ -154,15 +157,17 @@ jobs:
           printf 'FROM alpine:3.18\nRUN apk add --no-cache curl=8.4.0-r0\n' > vuln/Dockerfile
           docker build -t vuln:ci vuln
           docker save vuln:ci -o vuln.tar
+          chmod 644 vuln.tar
       - name: Build scanner image
         run: docker build -f docker/Dockerfile -t layersecops:local .
       - name: Scan (expected to fail the policy gate)
         id: scan
         run: |
+          mkdir -p vuln-reports && chmod 777 vuln-reports
           docker run --rm \
-            -v "$PWD:/work" \
+            -v "$PWD:/work" -v "$PWD/vuln-reports:/reports" \
             layersecops:local \
-            scan --image-tar /work/vuln.tar --fail-on critical --output-dir /work/vuln-reports
+            scan --image-tar /work/vuln.tar --fail-on critical --output-dir /reports
         continue-on-error: true
       - name: Assert the gate failed
         run: |
