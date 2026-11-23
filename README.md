@@ -328,6 +328,57 @@ scripts/extract-image.sh nginx:1.25 nginx.tar
 scripts/extract-image.sh --inspect nginx.tar
 ```
 
+## GitHub Action
+
+LayerSecOps can be used directly in any GitHub Actions workflow without installing
+anything:
+
+```yaml
+- name: Scan image
+  uses: dbosco051394/layersecops@v0.1.0
+  with:
+    image-tar: image.tar
+    format: json,sarif,html,metrics
+    fail-on: high
+    output-dir: reports
+```
+
+### Inputs
+
+| Input | Default | Description |
+|---|---|---|
+| `image` | — | Image reference (requires Docker daemon on runner) |
+| `image-tar` | — | Path to a docker-archive or OCI archive (relative to workspace) |
+| `image-ref` | — | Override the image reference used for labeling |
+| `format` | `json,html,sarif,metrics` | Report formats |
+| `fail-on` | `high` | Policy threshold |
+| `output-dir` | `reports` | Report directory |
+| `scanners` | `vuln` | Trivy scanners |
+| `layer-scope` | `squashed` | `squashed`, `all-layers`, or `deep-squashed` |
+| `min-severity` | — | Filter findings in reports |
+| `offline` | `false` | Skip DB updates |
+| `tool-image` | `ghcr.io/dbosco051394/layersecops:latest` | Override the scanner image |
+
+### Outputs
+
+| Output | Description |
+|---|---|
+| `report-dir` | Path to the report directory |
+| `findings` | Total findings in the report |
+| `passed` | Whether the scan passed policy |
+| `exit-code` | Scan exit code (0 pass, 1 policy, 2 error, 3 usage) |
+
+The action automatically enforces the policy gate: if `fail-on` is violated, the
+step fails and the workflow stops (unless `continue-on-error: true`).
+
+### Pinning versions
+
+```yaml
+uses: dbosco051394/layersecops@v0.1.0   # exact version
+uses: dbosco051394/layersecops@v0         # latest v0.x
+uses: dbosco051394/layersecops@main       # bleeding edge
+```
+
 ## Container image
 
 LayerSecOps ships a minimal, non-root container image for CI/CD pipelines. It

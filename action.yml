@@ -1,0 +1,152 @@
+name: 'LayerSecOps'
+description: 'Scan a Docker image for CVEs and layer-level findings, and gate CI on policy.'
+author: 'LayerSecOps contributors'
+
+branding:
+  icon: 'shield'
+  color: 'blue'
+
+inputs:
+  image:
+    description: 'Image reference to scan (e.g. nginx:1.25). Requires a Docker daemon on the runner.'
+    required: false
+  image-tar:
+    description: 'Path to a docker-archive or OCI archive tarball (relative to workspace).'
+    required: false
+  image-ref:
+    description: 'Override the image reference used for labeling when scanning an archive.'
+    required: false
+  format:
+    description: 'Comma-separated report formats: json, sarif, html, table, summary, metrics.'
+    required: false
+    default: 'json,html,sarif,metrics'
+  fail-on:
+    description: 'Fail when a finding has at least this severity (none, negligible, low, medium, high, critical, unknown).'
+    required: false
+    default: 'high'
+  output-dir:
+    description: 'Directory for report files (relative to workspace).'
+    required: false
+    default: 'reports'
+  scanners:
+    description: 'Trivy scanners (vuln, secret).'
+    required: false
+    default: 'vuln'
+  layer-scope:
+    description: 'What to catalog: squashed (final filesystem), all-layers (every layer), or deep-squashed.'
+    required: false
+    default: 'squashed'
+  min-severity:
+    description: 'Only include findings at or above this severity in reports.'
+    required: false
+  offline:
+    description: 'Do not update vulnerability databases.'
+    required: false
+    default: 'false'
+  tool-image:
+    description: 'Container image to use for scanning (override for air-gapped registries).'
+    required: false
+    default: 'ghcr.io/dbosco051394/layersecops:latest'
+
+outputs:
+  report-dir:
+    description: 'Path to the report directory.'
+    value: ${{ steps.scan.outputs.report-dir }}
+  findings:
+    description: 'Total findings in the report.'
+    value: ${{ steps.summary.outputs.findings }}
+  passed:
+    description: 'Whether the scan passed policy (true/false).'
+    value: ${{ steps.summary.outputs.passed }}
+  exit-code:
+    description: 'Scan exit code (0 pass, 1 policy failure, 2 scan/tool error, 3 bad usage).'
+    value: ${{ steps.scan.outputs.exit-code }}
+
+runs:
+  using: composite
+  steps:
+    - name: Validate inputs
+      shell: bash
+      run: |
+        if [ -z "${{ inputs.image }}" ] && [ -z "${{ inputs.image-tar }}" ]; then
+          echo "::error::Provide either 'image' or 'image-tar'."
+          exit 3
+        fi
+
+    - name: Run scan
+      id: scan
+      shell: bash
+      run: |
+        set +e
+        ARGS=""
+        if [ -n "${{ inputs.image }}" ]; then
+          ARGS="${{ inputs.image }}"
+        fi
+        if [ -n "${{ inputs.image-tar }}" ]; then
+          TAR_PATH="${{ inputs.image-tar }}"
+          case "$TAR_PATH" in
+            /*) ARGS="$ARGS --image-tar $TAR_PATH" ;;
+            *)  ARGS="$ARGS --image-tar /work/$TAR_PATH" ;;
+          esac
+        fi
+        if [ -n "${{ inputs.image-ref }}" ]; then
+          ARGS="$ARGS --image-ref ${inputs.image-ref}"
+        fi
+        ARGS="$ARGS --format ${{ inputs.format }}"
+        ARGS="$ARGS --fail-on ${{ inputs.fail-on }}"
+        ARGS="$ARGS --output-dir /work/${{ inputs.output-dir }}"
+        ARGS="$ARGS --scanners ${{ inputs.scanners }}"
+        ARGS="$ARGS --layer-scope ${{ inputs.layer-scope }}"
+        if [ -n "${{ inputs.min-severity }}" ]; then
+          ARGS="$ARGS --min-severity ${{ inputs.min-severity }}"
+        fi
+        if [ "${{ inputs.offline }}" = "true" ]; then
+          ARGS="$ARGS --offline"
+        fi
+
+        mkdir -p "${{ inputs.output-dir }}"
+        chmod 777 "${{ inputs.output-dir }}"
+
+        docker run --rm \
+          -v "$PWD:/work" \
+          -v "$PWD/${{ inputs.output-dir }}:/${{ inputs.output-dir }}" \
+          "${{ inputs.tool-image }}" \
+          scan $ARGS
+
+        EXIT_CODE=$?
+        echo "exit-code=$EXIT_CODE" >> "$GITHUB_OUTPUT"
+        echo "report-dir=${{ inputs.output-dir }}" >> "$GITHUB_OUTPUT"
+        exit 0
+
+    - name: Parse summary
+      id: summary
+      if: always()
+      shell: bash
+      run: |
+        REPORT="${{ inputs.output-dir }}/report.json"
+        if [ -f "$REPORT" ]; then
+          FINDINGS=$(python3 -c "import json; print(json.load(open('$REPORT'))['summary']['total'])" 2>/dev/null || echo "0")
+          PASSED=$(python3 -c "import json; print(str(json.load(open('$REPORT'))['validation']['passed']).lower())" 2>/dev/null || echo "false")
+          echo "findings=$FINDINGS" >> "$GITHUB_OUTPUT"
+          echo "passed=$PASSED" >> "$GITHUB_OUTPUT"
+        else
+          echo "findings=0" >> "$GITHUB_OUTPUT"
+          echo "passed=false" >> "$GITHUB_OUTPUT"
+        fi
+
+    - name: Enforce policy gate
+      if: always()
+      shell: bash
+      run: |
+        EXIT_CODE="${{ steps.scan.outputs.exit-code }}"
+        if [ "$EXIT_CODE" = "1" ]; then
+          echo "::error::LayerSecOps policy gate FAILED (exit code 1)."
+          exit 1
+        elif [ "$EXIT_CODE" = "2" ]; then
+          echo "::error::LayerSecOps scan/tool failure (exit code 2)."
+          exit 2
+        elif [ "$EXIT_CODE" = "3" ]; then
+          echo "::error::LayerSecOps usage error (exit code 3)."
+          exit 3
+        fi
+        echo "LayerSecOps gate passed (exit code 0)."
