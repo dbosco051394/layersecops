@@ -1,0 +1,31 @@
+{
+  "layer": [
+    {
+      "index": 0,
+      "id": "blobs",
+      "digestId": "sha256:diff0",
+      "sizeBytes": 100,
+      "command": "ADD rootfs.tar /",
+      "fileList": [
+        { "path": "bin/sh", "typeFlag": 48, "isDir": false },
+        { "path": "lib/apk/db/installed", "typeFlag": 48, "isDir": false }
+      ]
+    },
+    {
+      "index": 1,
+      "id": "blobs",
+      "digestId": "sha256:diff1",
+      "sizeBytes": 50,
+      "command": "RUN apk add curl",
+      "fileList": [
+        { "path": "usr/bin/curl", "typeFlag": 48, "isDir": false }
+      ]
+    }
+  ],
+  "image": {
+    "sizeBytes": 150,
+    "inefficientBytes": 10,
+    "efficiencyScore": 0.93,
+    "fileReference": []
+  }
+}

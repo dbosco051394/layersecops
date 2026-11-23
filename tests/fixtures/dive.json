@@ -1,0 +1,65 @@
+{
+  "image": {
+    "layers": [
+      {
+        "index": 0,
+        "digest": "sha256:layer0",
+        "size": 1000,
+        "command": "ADD rootfs.tar.xz /",
+        "fileList": [
+          { "path": "/etc/os-release" },
+          { "path": "/var/lib/dpkg/status" }
+        ]
+      },
+      {
+        "index": 1,
+        "digest": "sha256:layer1",
+        "size": 500,
+        "command": "RUN apt-get update",
+        "fileList": [
+          { "path": "/usr/lib/x86_64-linux-gnu/libssl.so.3" }
+        ]
+      },
+      {
+        "index": 2,
+        "digest": "sha256:layer2",
+        "size": 100,
+        "command": "RUN rm /usr/lib/x86_64-linux-gnu/libssl.so.3",
+        "fileList": [
+          { "path": "/usr/lib/x86_64-linux-gnu/.wh.libssl.so.3" }
+        ]
+      },
+      {
+        "index": 3,
+        "digest": "sha256:layer3",
+        "size": 700,
+        "command": "RUN apt-get install -y libssl3 zlib1g",
+        "fileList": [
+          { "path": "/usr/lib/x86_64-linux-gnu/libssl.so.3" },
+          { "path": "/usr/lib/x86_64-linux-gnu/libz.so.1" }
+        ]
+      },
+      {
+        "index": 4,
+        "digest": "sha256:layer4",
+        "size": 0,
+        "command": "ENV FOO=bar",
+        "fileList": []
+      },
+      {
+        "index": 5,
+        "digest": "sha256:layer5",
+        "size": 300,
+        "command": "COPY app /app",
+        "fileList": [
+          { "path": "/app/node_modules/lodash/package.json" }
+        ]
+      }
+    ],
+    "efficiency": {
+      "score": 0.9,
+      "wastedBytes": 100,
+      "wastedPercent": 10
+    }
+  }
+}

@@ -1,0 +1,172 @@
+name: LayerSecOps CI
+
+'on':
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+  security-events: write
+
+env:
+  IMAGE_NAME: ghcr.io/${{ github.repository_owner }}/layersecops
+
+jobs:
+  test:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install package
+        run: python -m pip install -e .
+      - name: Run tests
+        run: python -m unittest discover -s tests -t . -v
+      - name: Compile
+        run: python -m compileall -q src
+
+  build:
+    name: Build container image
+    runs-on: ubuntu-latest
+    needs: test
+    outputs:
+      image_ref: ${{ steps.ref.outputs.value }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE_NAME }}
+          tags: |
+            type=sha,prefix=,suffix=,format=short
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build (and push on default branch)
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile
+          platforms: linux/amd64
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          load: ${{ github.event_name == 'pull_request' }}
+          build-args: |
+            BAKE_DB=false
+
+      - name: Choose image reference for downstream jobs
+        id: ref
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "value=layersecops:local" >> "$GITHUB_OUTPUT"
+            docker tag "${{ steps.build.outputs.imageid }}" layersecops:local
+          else
+            echo "value=${{ env.IMAGE_NAME }}:${{ github.sha }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Upload image as artifact (for self-scan on PRs)
+        if: github.event_name == 'pull_request'
+        run: |
+          docker save layersecops:local -o image.tar
+          tar -czf image.tar.gz image.tar
+      - uses: actions/upload-artifact@v4
+        if: github.event_name == 'pull_request'
+        with:
+          name: layersecops-image
+          path: image.tar.gz
+          retention-days: 1
+
+  self-scan:
+    name: Scan the image we just built
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Obtain the image
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            # Rebuild locally to keep the scan hermetic and free of registry deps.
+            docker build -f docker/Dockerfile -t layersecops:local .
+          else
+            docker pull ${{ needs.build.outputs.image_ref }}
+            docker tag ${{ needs.build.outputs.image_ref }} layersecops:local
+          fi
+
+      - name: Export the image
+        run: docker save layersecops:local -o image.tar
+
+      - name: Run LayerSecOps against itself
+        run: |
+          docker run --rm \
+            -v "$PWD:/work" -v "$PWD/reports:/reports" \
+            layersecops:local \
+            scan --image-tar /work/image.tar \
+              --format json,sarif,html,metrics,table \
+              --fail-on high --output-dir /reports \
+              --log-format json
+        # Exit codes: 0 pass, 1 policy failure, 2 scan/tool failure, 3 bad usage.
+
+      - name: Upload SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: reports/report.sarif
+
+      - name: Upload report artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: layersecops-self-scan
+          path: reports/
+          retention-days: 14
+
+  negative-control:
+    name: Negative control (gate must fail)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build a deliberately vulnerable image
+        run: |
+          mkdir -p vuln
+          printf 'FROM alpine:3.18\nRUN apk add --no-cache curl=8.4.0-r0\n' > vuln/Dockerfile
+          docker build -t vuln:ci vuln
+          docker save vuln:ci -o vuln.tar
+      - name: Build scanner image
+        run: docker build -f docker/Dockerfile -t layersecops:local .
+      - name: Scan (expected to fail the policy gate)
+        id: scan
+        run: |
+          docker run --rm \
+            -v "$PWD:/work" \
+            layersecops:local \
+            scan --image-tar /work/vuln.tar --fail-on critical --output-dir /work/vuln-reports
+        continue-on-error: true
+      - name: Assert the gate failed
+        run: |
+          if [ "${{ steps.scan.outcome }}" = "success" ]; then
+            echo "::error::Negative control passed the gate; expected a policy failure."
+            exit 1
+          fi
+          echo "Negative control correctly failed the gate."

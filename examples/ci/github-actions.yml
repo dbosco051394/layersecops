@@ -1,0 +1,40 @@
+name: security-gate
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build the image under test
+        run: docker build -t app:ci .
+
+      - name: Export the image
+        run: docker save app:ci -o image.tar
+
+      - name: Scan with LayerSecOps
+        run: |
+          docker run --rm \
+            -v "$PWD:/work" -v "$PWD/reports:/reports" \
+            ghcr.io/layersecops/layersecops:latest \
+            scan --image-tar /work/image.tar \
+              --format json,sarif,html,metrics \
+              --fail-on high --output-dir /reports
+        # Exit codes: 0 pass, 1 policy failure, 2 scan/tool failure, 3 bad usage.
+
+      - name: Upload SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: reports/report.sarif
+
+      - name: Upload report artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: layersecops-report
+          path: reports/

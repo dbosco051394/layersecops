@@ -1,0 +1,14 @@
+.git
+.tools
+reports
+__pycache__
+*.pyc
+*.tar
+*.tar.gz
+tests
+examples
+scripts
+.env
+.venv
+venv
+node_modules

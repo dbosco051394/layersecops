@@ -1,0 +1,25 @@
+# Copy to layersecops.toml and adjust.
+[scan]
+tools = ["trivy", "grype", "syft", "dive"]
+require_tools = ["trivy", "grype", "syft"]
+scanners = ["vuln"]
+# squashed (final filesystem) | all-layers (every layer) | deep-squashed
+layer_scope = "squashed"
+timeout_seconds = 900
+offline = false
+output_dir = "reports"
+formats = ["json", "sarif", "html"]
+sbom = false
+keep_raw = false
+keep_workdir = false
+# tool_dir = ".tools/bin"
+# docker = "docker"
+
+[policy]
+fail_on = "high"
+ignore_unfixed = false
+ignore = []
+ignore_packages = []
+# ignore_file = ".layersecopsignore"
+max_critical = 0
+# max_high = 5

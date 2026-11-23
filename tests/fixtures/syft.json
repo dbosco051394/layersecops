@@ -1,0 +1,69 @@
+{
+  "artifacts": [
+    {
+      "id": "pkg1",
+      "name": "libssl3",
+      "version": "3.0.11-1",
+      "type": "deb",
+      "foundBy": "dpkg-db-cataloger",
+      "locations": [
+        { "path": "/var/lib/dpkg/status", "layerID": "sha256:layer0" }
+      ],
+      "purl": "pkg:deb/debian/libssl3@3.0.11-1",
+      "metadataType": "dpkg-db-entry",
+      "metadata": {
+        "package": "libssl3",
+        "source": "openssl",
+        "version": "3.0.11-1",
+        "files": [
+          { "path": "/usr/lib/x86_64-linux-gnu/libssl.so.3", "digest": "sha256:abc" }
+        ]
+      }
+    },
+    {
+      "id": "pkg2",
+      "name": "zlib1g",
+      "version": "1:1.2.13.dfsg-1",
+      "type": "deb",
+      "locations": [
+        { "path": "/var/lib/dpkg/status", "layerID": "sha256:layer0" }
+      ],
+      "purl": "pkg:deb/debian/zlib1g@1:1.2.13.dfsg-1",
+      "metadata": {
+        "files": [
+          { "path": "/usr/lib/x86_64-linux-gnu/libz.so.1" }
+        ]
+      }
+    },
+    {
+      "id": "pkg3",
+      "name": "lodash",
+      "version": "4.17.20",
+      "type": "npm",
+      "locations": [
+        { "path": "/app/node_modules/lodash/package.json", "layerID": "sha256:layer5" }
+      ],
+      "purl": "pkg:npm/lodash@4.17.20",
+      "metadata": { "files": [] }
+    }
+  ],
+  "source": {
+    "type": "image",
+    "target": {
+      "userInput": "demo:1.0",
+      "imageID": "sha256:imageid",
+      "manifestDigest": "sha256:manifest",
+      "tags": ["demo:1.0"],
+      "imageSize": 123456
+    }
+  },
+  "distro": {
+    "prettyName": "Debian GNU/Linux 12 (bookworm)",
+    "name": "debian",
+    "id": "debian",
+    "version": "12",
+    "versionID": "12.5"
+  },
+  "descriptor": { "name": "syft", "version": "1.18.0" },
+  "schema": { "version": "16.0.0" }
+}

@@ -1,0 +1,16 @@
+security-gate:
+  image: ghcr.io/layersecops/layersecops:latest
+  stage: test
+  script:
+    - docker build -t app:ci .
+    - docker save app:ci -o image.tar
+    - layersecops scan --image-tar image.tar \
+        --format json,sarif,html,metrics \
+        --fail-on high --output-dir reports
+  artifacts:
+    when: always
+    paths:
+      - reports/
+    reports:
+      sast: reports/report.sarif
+  allow_failure: false

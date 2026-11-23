@@ -1,0 +1,81 @@
+{
+  "matches": [
+    {
+      "vulnerability": {
+        "id": "CVE-2024-1234",
+        "dataSource": "https://nvd.nist.gov/vuln/detail/CVE-2024-1234",
+        "namespace": "debian:distro:debian:12",
+        "severity": "Critical",
+        "urls": ["https://nvd.nist.gov/vuln/detail/CVE-2024-1234"],
+        "description": "A critical issue in OpenSSL.",
+        "cvss": [
+          {
+            "version": "3.1",
+            "vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
+            "metrics": { "baseScore": 9.8, "exploitabilityScore": 3.9, "impactScore": 5.9 },
+            "vendor": "nvd"
+          }
+        ],
+        "epss": [{ "cve": "CVE-2024-1234", "epss": 0.91, "percentile": 0.99 }],
+        "kev": [{ "cve": "CVE-2024-1234", "dateAdded": "2024-01-01" }],
+        "fix": { "versions": ["3.0.13-1"], "state": "fixed" },
+        "advisories": [],
+        "relatedVulnerabilities": [
+          { "id": "GHSA-abcd-1234-efgh", "severity": "Critical" }
+        ]
+      },
+      "relatedVulnerabilities": [],
+      "artifact": {
+        "name": "libssl3",
+        "version": "3.0.11-1",
+        "type": "deb",
+        "locations": [
+          { "path": "/usr/lib/x86_64-linux-gnu/libssl.so.3", "layerID": "sha256:layer3" },
+          { "path": "/var/lib/dpkg/status", "layerID": "sha256:layer0" }
+        ],
+        "purl": "pkg:deb/debian/libssl3@3.0.11-1"
+      },
+      "matchDetails": []
+    },
+    {
+      "vulnerability": {
+        "id": "GHSA-wxyz-5678-abcd",
+        "namespace": "github:language:javascript",
+        "severity": "High",
+        "description": "A high issue in lodash.",
+        "cvss": [
+          { "version": "3.1", "metrics": { "baseScore": 7.4 }, "vendor": "nvd" }
+        ],
+        "fix": { "versions": ["4.17.21"], "state": "fixed" },
+        "relatedVulnerabilities": [{ "id": "CVE-2024-9999" }],
+        "urls": ["https://github.com/advisories/GHSA-wxyz-5678-abcd"]
+      },
+      "artifact": {
+        "name": "lodash",
+        "version": "4.17.20",
+        "type": "npm",
+        "locations": [
+          { "path": "/app/node_modules/lodash/package.json", "layerID": "sha256:layer5" }
+        ],
+        "purl": "pkg:npm/lodash@4.17.20"
+      },
+      "matchDetails": []
+    }
+  ],
+  "source": {
+    "type": "image",
+    "target": {
+      "userInput": "demo:1.0",
+      "imageID": "sha256:imageid",
+      "manifestDigest": "sha256:manifest",
+      "tags": ["demo:1.0"],
+      "imageSize": 123456
+    }
+  },
+  "distro": {
+    "name": "debian",
+    "version": "12.5",
+    "prettyName": "Debian GNU/Linux 12 (bookworm)"
+  },
+  "descriptor": { "name": "grype", "version": "0.90.0" }
+}
