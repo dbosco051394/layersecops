@@ -69,7 +69,13 @@ def build_sarif(document: dict[str, Any]) -> dict[str, Any]:
         layer = finding.get("layer") or {}
         severity = normalize_severity(finding.get("severity"))
         path = package.get("path")
-        uri = path or f"image:{image_ref}"
+        if path:
+            uri = path.lstrip("/")
+        else:
+            # GitHub Code Scanning requires a relative (file-scheme) URI.
+            # Container image findings do not map to repository files, so use
+            # a stable placeholder path instead of an image: scheme URI.
+            uri = f"container-image/{image_ref.replace(':', '_').replace('/', '_')}"
         fixed = ", ".join(package.get("fixedVersions") or []) or "no fix available"
         message = (
             f"{rule_id} ({severity}) in {package.get('name', 'unknown')} "
