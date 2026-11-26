@@ -45,6 +45,7 @@ class _ArgumentParser(argparse.ArgumentParser):
 def _add_common(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--config", metavar="PATH", help="TOML config file (default: ./layersecops.toml)")
     parser.add_argument("--tool-dir", metavar="DIR", help="directory containing trivy/grype/syft/dive")
+    parser.add_argument("--mask-file", metavar="PATH", help="mask file (layersecops-ignore.toml or .layersecopsignore)")
     parser.add_argument("--quiet", action="store_true", help="suppress progress output")
     parser.add_argument("--verbose", action="store_true", help="show tool command lines and errors")
     parser.add_argument("--no-color", action="store_true", help="disable ANSI colors on the console")
@@ -148,6 +149,8 @@ def _apply_scan_args(settings: Settings, args: argparse.Namespace) -> None:
         settings.workdir = Path(args.workdir).expanduser()
     if args.tool_dir:
         settings.tool_dir = Path(args.tool_dir).expanduser()
+    if getattr(args, "mask_file", None):
+        settings.mask_file = Path(args.mask_file).expanduser()
     if args.min_severity:
         settings.min_severity = args.min_severity
 
@@ -194,6 +197,8 @@ def cmd_scan(args: argparse.Namespace) -> int:
     settings = load_settings(args.config)
     _apply_scan_args(settings, args)
     _apply_policy_args(settings.policy, args)
+    if getattr(args, "mask_file", None):
+        settings.mask_file = Path(args.mask_file).expanduser()
 
     result = run_scan(
         reference=args.image,
@@ -237,8 +242,12 @@ def cmd_validate(args: argparse.Namespace) -> int:
     document = read_json(path)
     settings = load_settings(args.config)
     _apply_policy_args(settings.policy, args)
+    if getattr(args, "mask_file", None):
+        settings.mask_file = Path(args.mask_file).expanduser()
     findings = [_finding_from_dict(item) for item in document.get("findings") or []]
-    validation = evaluate_policy(findings, settings.policy)
+    from layersecops.mask import load_masks
+    masks = load_masks(settings.mask_file)
+    validation = evaluate_policy(findings, settings.policy, masks)
     print(f"Report:     {path}")
     print(f"Image:      {(document.get('scan') or {}).get('image', {}).get('reference', 'unknown')}")
     print(f"Findings:   {len(findings)}")
@@ -248,6 +257,7 @@ def cmd_validate(args: argparse.Namespace) -> int:
             f"Warning:    report was filtered at '{min_severity}'; "
             "validation only sees the findings that remain in it"
         )
+    print(f"Masked:     {validation.get('masked', 0)}")
     print(f"Validation: {'PASS' if validation['passed'] else 'FAIL'}")
     if validation.get("ignored"):
         print(f"Ignored:    {validation['ignored']}")

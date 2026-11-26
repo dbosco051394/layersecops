@@ -28,7 +28,7 @@ ARG DIVE_VERSION=0.13.1
 # ---------------------------------------------------------------------------
 # Stage 1: download the four static Go binaries.
 # ---------------------------------------------------------------------------
-FROM python:${PYTHON_VERSION}-slim-bookworm AS tools
+FROM python:${PYTHON_VERSION}-slim AS tools
 
 ARG TARGETARCH
 ARG TRIVY_VERSION
@@ -38,6 +38,7 @@ ARG DIVE_VERSION
 
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update \
+ && apt-get upgrade -y \
  && apt-get install -y --no-install-recommends ca-certificates curl \
  && rm -rf /var/lib/apt/lists/*
 
@@ -71,7 +72,7 @@ RUN set -eux; \
 # ---------------------------------------------------------------------------
 # Stage 2: install LayerSecOps itself.
 # ---------------------------------------------------------------------------
-FROM python:${PYTHON_VERSION}-slim-bookworm AS runtime
+FROM python:${PYTHON_VERSION}-slim AS runtime
 
 ARG PYTHON_VERSION
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -85,6 +86,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 # ca-certificates is needed for DB downloads; bash is used by helper scripts.
 RUN apt-get update \
+ && apt-get upgrade -y \
  && apt-get install -y --no-install-recommends ca-certificates \
  && rm -rf /var/lib/apt/lists/*
 
@@ -93,7 +95,8 @@ COPY --from=tools /opt/layersecops/bin /opt/layersecops/bin
 WORKDIR /app
 COPY pyproject.toml README.md ./
 COPY src ./src
-RUN pip install --no-cache-dir . \
+RUN pip install --no-cache-dir --upgrade pip setuptools \
+ && pip install --no-cache-dir . \
  && rm -rf /app/src /app/README.md /app/pyproject.toml
 
 # ---------------------------------------------------------------------------

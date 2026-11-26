@@ -450,6 +450,72 @@ templates.
   `raw/` for forensics; `--sbom` copies the Syft SBOM. All reports are
   self-contained (no CDN, no network at render time).
 
+## Masking known CVEs
+
+LayerSecOps supports a standardized masking file so developers can record
+vulnerabilities they have reviewed and decided not to fail the pipeline on.
+Masked findings are still reported (with full details) but do not cause the
+gate to fail.
+
+### Mask file formats
+
+**Simple** (`.layersecopsignore`): one vulnerability ID or glob per line:
+
+```
+CVE-2025-68121
+CVE-2026-*
+GHSA-*
+```
+
+**Rich** (`layersecops-ignore.toml`): structured rules with reasons, package
+filters, severity filters, and expiry dates:
+
+```toml
+[[rules]]
+id = "CVE-2025-68121"
+package = "stdlib"
+reason = "Go stdlib CVE in scanner binary; not exploitable in our usage"
+expires = "2027-06-01"
+
+[[rules]]
+id = "CVE-2026-*"
+package = "golang.org/x/*"
+reason = "Go module CVEs in upstream scanner binaries"
+```
+
+### Auto-discovery
+
+LayerSecOps automatically discovers mask files in the working directory:
+1. `layersecops-ignore.toml`
+2. `.layersecopsignore`
+3. `layersecops.ignore.toml`
+
+Or specify explicitly: `--mask-file path/to/mask.toml` or the
+`LAYERSECOPS_IGNORE_FILE` / `LAYERSECOPS_MASK_FILE` environment variables.
+Config files can also set `mask_file` in the `[scan]` section.
+
+### Rule matching
+
+A finding is masked if it matches **all** specified criteria in a rule
+(AND logic within a rule). Multiple rules are OR'd together. A rule must
+specify at least one criterion (`id`, `package`, `severity`, `layer`, or
+`path`).
+
+- `id`: vulnerability ID or glob pattern (also checks aliases)
+- `package`: package name or glob pattern
+- `severity`: severity level to match
+- `layer`: layer index to match
+- `path`: file path glob
+- `reason`: human-readable justification (shown in reports)
+- `expires`: ISO date after which the rule no longer applies
+
+### Report integration
+
+Masked findings appear in the report with full details and their masking
+reason. The validation section includes `masked` count and `maskedFindings`
+list. The HTML report shows a "Masked findings" section, and the console
+table prints masked findings with their reasons.
+
 ## Limitations and design notes
 
 - **Image-level validation.** Findings describe the image filesystem, not a

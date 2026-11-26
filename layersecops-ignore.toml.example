@@ -1,0 +1,40 @@
+# Example LayerSecOps mask file.
+# Copy to layersecops-ignore.toml or .layersecopsignore and adjust.
+#
+# Each [[rules]] entry can match by:
+#   id       - vulnerability ID or glob (e.g. "CVE-2025-*", "GHSA-*")
+#   package  - package name or glob (e.g. "stdlib", "libssl*")
+#   severity - severity level (critical, high, medium, low, negligible, unknown)
+#   layer    - layer index (integer)
+#   path     - file path glob
+#
+# Optional fields:
+#   reason   - human-readable justification (recommended for auditability)
+#   expires  - ISO date after which the rule no longer applies
+#
+# A finding is masked if it matches ALL specified criteria in a rule.
+# Multiple rules are OR'd together.
+
+# expires = "2027-01-01"  # global expiry for all rules
+
+[[rules]]
+id = "CVE-2025-68121"
+package = "stdlib"
+reason = "Go stdlib CVE in scanner binary; not exploitable in our usage"
+expires = "2027-06-01"
+
+[[rules]]
+id = "CVE-2026-*"
+package = "golang.org/x/*"
+reason = "Go module CVEs in upstream scanner binaries"
+
+[[rules]]
+package = "stdlib"
+severity = "high"
+reason = "Go stdlib CVEs in scanner binaries; no fix available without rebuilding"
+
+# Simple line-based format (one ID per line) is also supported via
+# .layersecopsignore:
+# CVE-2025-68121
+# CVE-2026-*
+# GHSA-*

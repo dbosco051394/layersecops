@@ -100,6 +100,10 @@ def render_text(document: dict[str, Any], *, color: bool = False) -> str:
     )
     if validation.get("ignored"):
         lines.append(f"Ignored   {validation.get('ignored')} findings by policy")
+    if validation.get("masked"):
+        lines.append(f"Masked    {validation.get('masked')} findings by mask rules")
+        for mf in (validation.get("maskedFindings") or [])[:10]:
+            lines.append(f"  - {mf.get('vulnerabilityId')} in {mf.get('package')} ({mf.get('reason') or 'no reason'})")
 
     lines.append("")
     lines.append(_color("FINDINGS", "bold", color))

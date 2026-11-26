@@ -298,6 +298,20 @@ def build_html(document: dict[str, Any]) -> str:
             '<h2>Policy violations</h2><div class="notice error"><ul>' + items + "</ul></div>"
         )
 
+    masked = validation.get("maskedFindings") or []
+    masked_html = ""
+    if masked:
+        items = "".join(
+            f"<li><b>{_e(m.get('vulnerabilityId'))}</b> in {_e(m.get('package'))} "
+            f"{_e(m.get('version'))} ({_e(m.get('severity'))}) — {_e(m.get('reason') or 'no reason')}"
+            f"{' (expires ' + _e(m.get('expires')) + ')' if m.get('expires') else ''}</li>"
+            for m in masked[:100]
+        )
+        masked_html = (
+            f'<h2>Masked findings ({len(masked)})</h2>'
+            f'<div class="notice"><ul>{items}</ul></div>'
+        )
+
     warnings = scan.get("warnings") or []
     errors = scan.get("errors") or []
     notes = ""
@@ -385,6 +399,7 @@ def build_html(document: dict[str, Any]) -> str:
 </div>
 
 {violation_html}
+{masked_html}
 {notes}
 
 <h2>Findings</h2>

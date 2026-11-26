@@ -69,6 +69,7 @@ class Settings:
     workdir: Path | None = None
     policy: Policy = field(default_factory=Policy)
     config_path: Path | None = None
+    mask_file: Path | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -83,6 +84,7 @@ class Settings:
             "minSeverity": self.min_severity,
             "platform": self.platform,
             "policy": self.policy.to_dict(),
+            "maskFile": str(self.mask_file) if self.mask_file else None,
         }
 
 
@@ -246,6 +248,10 @@ def load_settings(config_path: str | Path | None = None) -> Settings:
     if "platform" in scan:
         settings.platform = str(scan["platform"])
 
+    # Masking / ignore configuration
+    if "mask_file" in scan:
+        settings.mask_file = _resolve_path(scan["mask_file"], base)
+
     if "fail_on" in policy:
         fail_on = str(policy["fail_on"]).strip().lower()
         if fail_on not in {"none", *SEVERITY_RANK.keys()}:
@@ -282,11 +288,13 @@ def _matches_any(value: str, patterns: list[str]) -> bool:
     return any(fnmatch.fnmatch(lowered, pattern.lower()) for pattern in patterns)
 
 
-def evaluate_policy(findings: list[Finding], policy: Policy) -> dict[str, Any]:
+def evaluate_policy(findings: list[Finding], policy: Policy, masks: Any = None) -> dict[str, Any]:
     fail_on = policy.fail_on.lower()
     threshold = SEVERITY_RANK.get(fail_on, 0)
     violations: list[dict[str, Any]] = []
     ignored = 0
+    masked = 0
+    masked_findings: list[dict[str, Any]] = []
     counts = {severity: 0 for severity in SEVERITY_RANK}
     for finding in findings:
         counts[finding.severity] = counts.get(finding.severity, 0) + 1
@@ -306,6 +314,23 @@ def evaluate_policy(findings: list[Finding], policy: Policy) -> dict[str, Any]:
         ):
             ignored += 1
             continue
+
+        # Check masking rules
+        if masks is not None:
+            is_masked, rule = masks.is_masked(finding)
+            if is_masked:
+                masked += 1
+                masked_findings.append({
+                    "findingId": finding.id,
+                    "vulnerabilityId": finding.vulnerability_id,
+                    "package": finding.package.name,
+                    "version": finding.package.version,
+                    "severity": finding.severity,
+                    "reason": rule.reason if rule else "",
+                    "expires": rule.expires.isoformat() if rule and rule.expires else None,
+                })
+                continue
+
         if fail_on != "none" and severity_rank(finding.severity) >= threshold:
             violations.append(
                 {
@@ -344,5 +369,7 @@ def evaluate_policy(findings: list[Finding], policy: Policy) -> dict[str, Any]:
         "policy": policy.to_dict(),
         "violations": violations,
         "ignored": ignored,
+        "masked": masked,
+        "maskedFindings": masked_findings,
         "counts": counts,
     }
