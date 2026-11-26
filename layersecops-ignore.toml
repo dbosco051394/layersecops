@@ -1,0 +1,36 @@
+# LayerSecOps mask file for critical CVEs in upstream scanner binaries.
+# These CVEs are in the Go standard library / golang.org/x/net embedded in
+# trivy, grype, syft, and dive. They cannot be fixed without rebuilding
+# the scanners from source with a patched Go toolchain.
+#
+# High and lower severity CVEs are masked via .layersecopsignore.
+
+[[rules]]
+id = "CVE-2025-68121"
+package = "stdlib"
+reason = "Go stdlib CVE in scanner binaries (trivy/grype/syft/dive); not exploitable in scan-only usage. Requires Go 1.24.13+."
+expires = "2027-01-01"
+
+[[rules]]
+id = "CVE-2026-56857"
+package = "stdlib"
+reason = "Go stdlib CVE in scanner binaries; requires Go 1.26.9+. No patched upstream release available."
+expires = "2027-01-01"
+
+[[rules]]
+id = "CVE-2025-22871"
+package = "stdlib"
+reason = "Go stdlib CVE in scanner binaries; requires Go 1.23.8+. No patched upstream release available."
+expires = "2027-01-01"
+
+[[rules]]
+id = "CVE-2026-78663"
+package = "golang.org/x/net"
+reason = "Go module CVE in scanner binaries; requires golang.org/x/net 0.60.0+. No patched upstream release available."
+expires = "2027-01-01"
+
+[[rules]]
+id = "CVE-2026-78663"
+package = "stdlib"
+reason = "Go stdlib CVE in scanner binaries; requires Go 1.26.9+. No patched upstream release available."
+expires = "2027-01-01"

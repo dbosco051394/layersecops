@@ -191,43 +191,60 @@ def load_mask_file(path: Path) -> MaskSet:
     return load_simple_ignore(path)
 
 
-def find_mask_file(explicit: str | Path | None = None) -> Path | None:
-    """Find a mask file: explicit path, env var, or auto-discover."""
+def find_mask_files(explicit: str | Path | None = None) -> list[Path]:
+    """Find mask files: explicit path, env var, or auto-discover (all found)."""
     if explicit:
         path = Path(explicit).expanduser()
         if not path.is_file():
             raise ConfigError(f"Mask file not found: {path}")
-        return path
+        return [path]
 
     env_path = os.environ.get("LAYERSECOPS_IGNORE_FILE") or os.environ.get("LAYERSECOPS_MASK_FILE")
     if env_path:
         path = Path(env_path).expanduser()
         if path.is_file():
-            return path
+            return [path]
 
-    # Auto-discover in cwd
+    # Auto-discover all matching files in cwd
+    found: list[Path] = []
     for candidate in (
         Path.cwd() / "layersecops-ignore.toml",
         Path.cwd() / ".layersecopsignore",
         Path.cwd() / "layersecops.ignore.toml",
     ):
         if candidate.is_file():
-            return candidate
-
-    return None
+            found.append(candidate)
+    return found
 
 
 def load_masks(explicit: str | Path | None = None) -> MaskSet:
-    """Load masks from explicit path or auto-discover. Returns empty MaskSet if none found."""
-    path = find_mask_file(explicit)
-    if path is None:
+    """Load masks from explicit path or auto-discover. Merges all found files."""
+    paths = find_mask_files(explicit)
+    if not paths:
         return MaskSet(source="")
-    if path.suffix == ".toml":
-        return load_toml_mask(path)
-    return load_simple_ignore(path)
+    sets = []
+    for path in paths:
+        if path.suffix == ".toml":
+            sets.append(load_toml_mask(path))
+        else:
+            sets.append(load_simple_ignore(path))
+    if len(sets) == 1:
+        return sets[0]
+    return merge_mask_sets(*sets)
 
 
 def merge_mask_sets(*sets: MaskSet) -> MaskSet:
+    """Merge multiple MaskSets into one."""
+    merged = MaskSet(source=", ".join(s.source for s in sets if s.source))
+    for s in sets:
+        merged.rules.extend(s.rules)
+    return merged
+
+
+def find_mask_file(explicit: str | Path | None = None) -> Path | None:
+    """Find a single mask file (backward compat). Returns the first found."""
+    paths = find_mask_files(explicit)
+    return paths[0] if paths else None
     """Merge multiple MaskSets into one."""
     merged = MaskSet(source=", ".join(s.source for s in sets if s.source))
     for s in sets:
