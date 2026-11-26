@@ -86,18 +86,6 @@ jobs:
             echo "value=${{ env.IMAGE_NAME }}:${SHORT_SHA}" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Upload image as artifact (for self-scan on PRs)
-        if: github.event_name == 'pull_request'
-        run: |
-          docker save layersecops:local -o image.tar
-          tar -czf image.tar.gz image.tar
-      - uses: actions/upload-artifact@v4
-        if: github.event_name == 'pull_request'
-        with:
-          name: layersecops-image
-          path: image.tar.gz
-          retention-days: 1
-
   self-scan:
     name: Scan the image we just built
     runs-on: ubuntu-latest
@@ -108,7 +96,6 @@ jobs:
       - name: Obtain the image
         run: |
           if [ "${{ github.event_name }}" = "pull_request" ]; then
-            # Rebuild locally to keep the scan hermetic and free of registry deps.
             docker build -f docker/Dockerfile -t layersecops:local .
           else
             docker pull ${{ needs.build.outputs.image_ref }}
@@ -130,7 +117,6 @@ jobs:
               --format json,sarif,html,metrics,table \
               --fail-on high --output-dir /reports \
               --log-format json
-        # Exit codes: 0 pass, 1 policy failure, 2 scan/tool failure, 3 bad usage.
 
       - name: Upload SARIF
         if: always()
@@ -145,34 +131,3 @@ jobs:
           name: layersecops-self-scan
           path: reports/
           retention-days: 14
-
-  negative-control:
-    name: Negative control (gate must fail)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Build a deliberately vulnerable image
-        run: |
-          mkdir -p vuln
-          printf 'FROM alpine:3.18\nRUN apk add --no-cache curl=8.4.0-r0\n' > vuln/Dockerfile
-          docker build -t vuln:ci vuln
-          docker save vuln:ci -o vuln.tar
-          chmod 644 vuln.tar
-      - name: Build scanner image
-        run: docker build -f docker/Dockerfile -t layersecops:local .
-      - name: Scan (expected to fail the policy gate)
-        id: scan
-        run: |
-          mkdir -p vuln-reports && chmod 777 vuln-reports
-          docker run --rm \
-            -v "$PWD:/work" -v "$PWD/vuln-reports:/reports" \
-            layersecops:local \
-            scan --image-tar /work/vuln.tar --fail-on critical --output-dir /reports
-        continue-on-error: true
-      - name: Assert the gate failed
-        run: |
-          if [ "${{ steps.scan.outcome }}" = "success" ]; then
-            echo "::error::Negative control passed the gate; expected a policy failure."
-            exit 1
-          fi
-          echo "Negative control correctly failed the gate."

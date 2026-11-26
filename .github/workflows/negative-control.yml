@@ -1,0 +1,45 @@
+name: Negative Control
+
+'on':
+  schedule:
+    - cron: '0 6 * * 1'   # Weekly on Monday
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  negative-control:
+    name: Verify the security gate fails on a vulnerable image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build a deliberately vulnerable image
+        run: |
+          mkdir -p vuln
+          printf 'FROM alpine:3.18\nRUN apk add --no-cache curl=8.4.0-r0\n' > vuln/Dockerfile
+          docker build -t vuln:ci vuln
+          docker save vuln:ci -o vuln.tar
+          chmod 644 vuln.tar
+
+      - name: Build scanner image
+        run: docker build -f docker/Dockerfile -t layersecops:local .
+
+      - name: Scan (expected to fail the policy gate)
+        id: scan
+        run: |
+          mkdir -p vuln-reports && chmod 777 vuln-reports
+          docker run --rm \
+            -v "$PWD:/work" -v "$PWD/vuln-reports:/reports" \
+            layersecops:local \
+            scan --image-tar /work/vuln.tar --fail-on critical --output-dir /reports
+        continue-on-error: true
+
+      - name: Assert the gate failed
+        run: |
+          if [ "${{ steps.scan.outcome }}" = "success" ]; then
+            echo "::error::Negative control passed the gate; expected a policy failure."
+            exit 1
+          fi
+          echo "Negative control correctly failed the gate."
