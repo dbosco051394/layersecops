@@ -304,7 +304,8 @@ def build_html(document: dict[str, Any]) -> str:
         items = "".join(
             f"<li><b>{_e(m.get('vulnerabilityId'))}</b> in {_e(m.get('package'))} "
             f"{_e(m.get('version'))} ({_e(m.get('severity'))}) — {_e(m.get('reason') or 'no reason')}"
-            f"{' (expires ' + _e(m.get('expires')) + ')' if m.get('expires') else ''}</li>"
+            f"{' (expires ' + _e(m.get('expires')) + ')' if m.get('expires') else ''}"
+            f"{' [reviewed by ' + _e(m.get('reviewedBy')) + ']' if m.get('reviewedBy') else ''}</li>"
             for m in masked[:100]
         )
         masked_html = (

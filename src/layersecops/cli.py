@@ -137,6 +137,8 @@ def _apply_scan_args(settings: Settings, args: argparse.Namespace) -> None:
         settings.keep_workdir = True
     if args.keep_raw:
         settings.keep_raw = True
+    if getattr(args, "strict", False):
+        settings.strict = True
     if args.sbom:
         settings.sbom = True
     if args.pull:
@@ -244,10 +246,12 @@ def cmd_validate(args: argparse.Namespace) -> int:
     _apply_policy_args(settings.policy, args)
     if getattr(args, "mask_file", None):
         settings.mask_file = Path(args.mask_file).expanduser()
-    findings = [_finding_from_dict(item) for item in document.get("findings") or []]
+    if getattr(args, "strict", False):
+        settings.strict = True
     from layersecops.mask import load_masks
     masks = load_masks(settings.mask_file)
-    validation = evaluate_policy(findings, settings.policy, masks)
+    findings = [_finding_from_dict(item) for item in document.get("findings") or []]
+    validation = evaluate_policy(findings, settings.policy, masks, settings.strict)
     print(f"Report:     {path}")
     print(f"Image:      {(document.get('scan') or {}).get('image', {}).get('reference', 'unknown')}")
     print(f"Findings:   {len(findings)}")
@@ -317,6 +321,7 @@ def build_parser() -> argparse.ArgumentParser:
     scan.add_argument("--workdir", metavar="DIR", help="use this work directory")
     scan.add_argument("--sbom", action="store_true", help="copy the Syft SBOM into the report directory")
     scan.add_argument("--keep-raw", action="store_true", help="copy raw tool JSON and logs into the report directory")
+    scan.add_argument("--strict", action="store_true", help="fail if any masked finding is critical (even if masked)")
     scan.add_argument("--min-severity", choices=["negligible", "low", "medium", "high", "critical"], help="only report findings at or above this severity")
     scan.add_argument("--docker", metavar="PATH", help="docker executable (default: docker)")
     _add_policy_args(scan)

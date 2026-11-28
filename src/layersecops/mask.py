@@ -47,6 +47,8 @@ class MaskRule:
     path: str | None = None
     reason: str = ""
     expires: date | None = None
+    reviewed_by: str | None = None
+    reviewed_date: date | None = None
 
     def matches(self, finding: Finding) -> bool:
         """Return True if this rule masks the given finding."""
@@ -83,6 +85,8 @@ class MaskRule:
             "path": self.path,
             "reason": self.reason,
             "expires": self.expires.isoformat() if self.expires else None,
+            "reviewedBy": self.reviewed_by,
+            "reviewedDate": self.reviewed_date.isoformat() if self.reviewed_date else None,
         }
 
 
@@ -168,6 +172,8 @@ def load_toml_mask(path: Path) -> MaskSet:
             path=entry.get("path"),
             reason=str(entry.get("reason") or ""),
             expires=_parse_date(entry.get("expires")) or global_expires,
+            reviewed_by=entry.get("reviewed_by") or entry.get("reviewedBy"),
+            reviewed_date=_parse_date(entry.get("reviewed_date") or entry.get("reviewedDate")),
         )
         mask_set.rules.append(rule)
 
@@ -231,6 +237,35 @@ def load_masks(explicit: str | Path | None = None) -> MaskSet:
     if len(sets) == 1:
         return sets[0]
     return merge_mask_sets(*sets)
+
+
+def check_mask_expiry(masks: MaskSet, warn_days: int = 30) -> list[str]:
+    """Return warning messages for expired or soon-to-expire mask rules."""
+    warnings: list[str] = []
+    today = date.today()
+    for rule in masks.rules:
+        if rule.expires is None:
+            warnings.append(
+                f"Mask rule has no expiry date: {rule.id or rule.package or rule.severity or '?'} "
+                f"({rule.reason or 'no reason'})"
+            )
+        elif rule.expires < today:
+            warnings.append(
+                f"Mask rule expired on {rule.expires}: {rule.id or rule.package or rule.severity or '?'} "
+                f"({rule.reason or 'no reason'})"
+            )
+        elif (rule.expires - today).days <= warn_days:
+            warnings.append(
+                f"Mask rule expires in {(rule.expires - today).days} days "
+                f"({rule.expires}): {rule.id or rule.package or rule.severity or '?'} "
+                f"({rule.reason or 'no reason'})"
+            )
+    return warnings
+    """Merge multiple MaskSets into one."""
+    merged = MaskSet(source=", ".join(s.source for s in sets if s.source))
+    for s in sets:
+        merged.rules.extend(s.rules)
+    return merged
 
 
 def merge_mask_sets(*sets: MaskSet) -> MaskSet:

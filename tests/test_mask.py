@@ -8,6 +8,7 @@ from pathlib import Path
 from layersecops.mask import (
     MaskRule,
     MaskSet,
+    check_mask_expiry,
     load_mask_file,
     load_masks,
     load_simple_ignore,
@@ -261,17 +262,39 @@ class EvaluatePolicyMaskTests(unittest.TestCase):
         self.assertEqual(len(result["maskedFindings"]), 1)
         self.assertEqual(result["maskedFindings"][0]["reason"], "accepted")
 
-    def test_unmasked_findings_still_violate(self):
+    def test_strict_mode_critical_masked_fails(self):
         from layersecops.config import Policy, evaluate_policy
-        findings = [
-            _finding("CVE-2024-1", "pkg", "high"),
-            _finding("CVE-2024-2", "pkg", "high"),
-        ]
+        findings = [_finding("CVE-2024-1", "pkg", "critical")]
         masks = MaskSet(rules=[MaskRule(id="CVE-2024-1", reason="accepted")])
-        result = evaluate_policy(findings, Policy(fail_on="high"), masks)
+        result = evaluate_policy(findings, Policy(fail_on="high"), masks, strict=True)
         self.assertFalse(result["passed"])
         self.assertEqual(result["masked"], 1)
         self.assertEqual(len(result["violations"]), 1)
+        self.assertEqual(result["violations"][0]["type"], "masked-critical")
+
+    def test_strict_mode_non_critical_masked_passes(self):
+        from layersecops.config import Policy, evaluate_policy
+        findings = [_finding("CVE-2024-1", "pkg", "high")]
+        masks = MaskSet(rules=[MaskRule(id="CVE-2024-1", reason="accepted")])
+        result = evaluate_policy(findings, Policy(fail_on="high"), masks, strict=True)
+        self.assertTrue(result["passed"])
+        self.assertEqual(result["masked"], 1)
+
+    def test_expiry_warnings(self):
+        from layersecops.mask import check_mask_expiry, MaskRule, MaskSet
+        from datetime import timedelta
+        rules = [
+            MaskRule(id="CVE-1", reason="no expiry"),
+            MaskRule(id="CVE-2", reason="expired", expires=date.today() - timedelta(days=1)),
+            MaskRule(id="CVE-3", reason="soon", expires=date.today() + timedelta(days=15)),
+            MaskRule(id="CVE-4", reason="ok", expires=date.today() + timedelta(days=60)),
+        ]
+        ms = MaskSet(rules=rules)
+        warnings = check_mask_expiry(ms)
+        self.assertEqual(len(warnings), 3)  # no-expiry, expired, soon
+        self.assertTrue(any("no expiry" in w for w in warnings))
+        self.assertTrue(any("expired" in w for w in warnings))
+        self.assertTrue(any("expires in" in w for w in warnings))
 
 
 if __name__ == "__main__":

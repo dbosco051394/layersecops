@@ -186,6 +186,7 @@ Default output is `reports/<image>-<timestamp>/` with `report.json` and
 | `--require-tools trivy,grype,syft` | Tools that must succeed (default) |
 | `--scanners vuln,secret` | Trivy scanners (default `vuln`) |
 | `--layer-scope all-layers` | Catalog every layer (default); `squashed` validates only the final filesystem |
+| `--strict` | Fail if any masked finding is critical (even if masked) |
 | `--offline` | Skip Trivy DB update and Grype DB auto-update || `--min-severity high` | Only include findings at/above this severity in reports |
 | `--ignore CVE-2023-*` | Ignore IDs/globs (repeatable) |
 | `--ignore-package openssl` | Ignore package names/globs (repeatable) |
@@ -389,6 +390,7 @@ anything:
 | `layer-scope` | `all-layers` | `squashed`, `all-layers`, or `deep-squashed` |
 | `min-severity` | — | Filter findings in reports |
 | `offline` | `false` | Skip DB updates |
+| `strict` | `false` | Fail if any masked finding is critical |
 | `tool-image` | `ghcr.io/dbosco051394/layersecops:latest` | Override the scanner image |
 
 ### Outputs
@@ -515,6 +517,24 @@ Masked findings appear in the report with full details and their masking
 reason. The validation section includes `masked` count and `maskedFindings`
 list. The HTML report shows a "Masked findings" section, and the console
 table prints masked findings with their reasons.
+
+### Strict mode
+
+Use `--strict` to fail the pipeline if any masked finding is critical, even
+if it is masked. This prevents critical CVEs from being silently accepted:
+
+```bash
+layersecops scan --image-tar app.tar --strict --fail-on high
+```
+
+### Expiry warnings
+
+LayerSecOps warns (but does not fail) when a mask rule is:
+- Within 30 days of expiry
+- Already expired
+- Has no expiry date
+
+Warnings appear in the scan output and the `scan.warnings` array in the report.
 
 ## Limitations and design notes
 

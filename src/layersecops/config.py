@@ -70,6 +70,7 @@ class Settings:
     policy: Policy = field(default_factory=Policy)
     config_path: Path | None = None
     mask_file: Path | None = None
+    strict: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -85,6 +86,7 @@ class Settings:
             "platform": self.platform,
             "policy": self.policy.to_dict(),
             "maskFile": str(self.mask_file) if self.mask_file else None,
+            "strict": self.strict,
         }
 
 
@@ -252,6 +254,9 @@ def load_settings(config_path: str | Path | None = None) -> Settings:
     if "mask_file" in scan:
         settings.mask_file = _resolve_path(scan["mask_file"], base)
 
+    if "strict" in scan:
+        settings.strict = _as_bool(scan["strict"], "scan.strict")
+
     if "fail_on" in policy:
         fail_on = str(policy["fail_on"]).strip().lower()
         if fail_on not in {"none", *SEVERITY_RANK.keys()}:
@@ -288,7 +293,7 @@ def _matches_any(value: str, patterns: list[str]) -> bool:
     return any(fnmatch.fnmatch(lowered, pattern.lower()) for pattern in patterns)
 
 
-def evaluate_policy(findings: list[Finding], policy: Policy, masks: Any = None) -> dict[str, Any]:
+def evaluate_policy(findings: list[Finding], policy: Policy, masks: Any = None, strict: bool = False) -> dict[str, Any]:
     fail_on = policy.fail_on.lower()
     threshold = SEVERITY_RANK.get(fail_on, 0)
     violations: list[dict[str, Any]] = []
@@ -319,6 +324,35 @@ def evaluate_policy(findings: list[Finding], policy: Policy, masks: Any = None) 
         if masks is not None:
             is_masked, rule = masks.is_masked(finding)
             if is_masked:
+                # In strict mode, critical masked findings are still violations
+                if strict and finding.severity == "critical":
+                    violations.append(
+                        {
+                            "type": "masked-critical",
+                            "findingId": finding.id,
+                            "vulnerabilityId": finding.vulnerability_id,
+                            "package": finding.package.name,
+                            "version": finding.package.version,
+                            "severity": finding.severity,
+                            "layer": finding.layer.index if finding.layer else None,
+                            "message": (
+                                f"{finding.vulnerability_id} in {finding.package.name} "
+                                f"{finding.package.version} is critical and masked "
+                                f"(strict mode: masked criticals are not allowed)"
+                            ),
+                        }
+                    )
+                    masked += 1
+                    masked_findings.append({
+                        "findingId": finding.id,
+                        "vulnerabilityId": finding.vulnerability_id,
+                        "package": finding.package.name,
+                        "version": finding.package.version,
+                        "severity": finding.severity,
+                        "reason": (rule.reason if rule else "") + " [STRICT MODE VIOLATION]",
+                        "expires": rule.expires.isoformat() if rule and rule.expires else None,
+                    })
+                    continue
                 masked += 1
                 masked_findings.append({
                     "findingId": finding.id,

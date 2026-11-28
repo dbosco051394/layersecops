@@ -39,8 +39,8 @@ inputs:
   min-severity:
     description: 'Only include findings at or above this severity in reports.'
     required: false
-  offline:
-    description: 'Do not update vulnerability databases.'
+  strict:
+    description: 'Fail if any masked finding is critical (even if masked).'
     required: false
     default: 'false'
   tool-image:
@@ -102,6 +102,9 @@ runs:
         fi
         if [ "${{ inputs.offline }}" = "true" ]; then
           ARGS="$ARGS --offline"
+        fi
+        if [ "${{ inputs.strict }}" = "true" ]; then
+          ARGS="$ARGS --strict"
         fi
 
         mkdir -p "${{ inputs.output-dir }}"

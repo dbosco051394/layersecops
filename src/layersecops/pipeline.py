@@ -567,9 +567,10 @@ def run_scan(
                 image.size_bytes = meta["imageSize"]
 
         # --- Policy and reports --------------------------------------------
-        from layersecops.mask import load_masks
+        from layersecops.mask import check_mask_expiry, load_masks
         masks = load_masks(settings.mask_file)
-        validation = evaluate_policy(findings, settings.policy, masks)
+        warnings.extend(check_mask_expiry(masks))
+        validation = evaluate_policy(findings, settings.policy, masks, settings.strict)
         report_findings = filter_by_min_severity(findings, settings.min_severity)
         tool_statuses = [
             manager.tool_status(name) for name in ("trivy", "grype", "syft", "dive")

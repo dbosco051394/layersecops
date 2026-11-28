@@ -22,6 +22,8 @@ id = "CVE-2025-68121"
 package = "stdlib"
 reason = "Go stdlib CVE in scanner binary; not exploitable in our usage"
 expires = "2027-06-01"
+reviewed_by = "security-team"
+reviewed_date = "2026-11-26"
 
 [[rules]]
 id = "CVE-2026-*"
